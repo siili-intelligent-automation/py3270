@@ -187,12 +187,16 @@ class NotConnectedException(Exception):
 class Wc3270App(ExecutableApp):
     executable = "wc3270"
     # see notes for args in x3270App
-    args = ["-xrm", "wc3270.unlockDelay: False"]
+    args = [
+        "-xrm", "wc3270.unlockDelay: False",
+        '-xrm', 'wc3270.model: 2',
+        ]
     script_port = 17938
 
-    def __init__(self, args):
+    def __init__(self, charset, args):
+        self.args = [*Wc3270App.args, '-charset', charset,]
         if args:
-            self.args = Wc3270App.args + args
+            self.args.append(args)
         self.sp = None
         self.socket_fh = None
 
@@ -261,16 +265,18 @@ class Emulator(object):
         with it.
     """
 
-    def __init__(self, visible=False, timeout=30, app=None, args=None):
+    def __init__(self, visible=False, timeout=30, app=None,  charset='finnish-euro', args=None) -> None:
         """
             Create an emulator instance
 
             `visible` controls which executable will be used.
             `timeout` controls the timeout paramater to any Wait() command sent
                 to x3270.
+            `charset` allows specifying the used charset for Wc3270.
+                see http://x3270.bgp.nu/wc3270-man.html#Character-Sets for more details.
             `args` allows sending parameters to the emulator executable 
         """
-        self.app = app or self.create_app(visible, args)
+        self.app = app or self.create_app(visible, charset, args)
         self.is_terminated = False
         self.status = Status(None)
         self.timeout = timeout
@@ -284,10 +290,11 @@ class Emulator(object):
         """
         self.terminate()
 
-    def create_app(self, visible, args):
+    def create_app(self, visible, charset, args):
         if os.name == "nt":
             if visible:
-                return Wc3270App(args)
+                return Wc3270App(charset, args)
+            # TODO: If relevant, make charset selectable as a parameter for WS3270 as well.
             return Ws3270App(args)
         if visible:
             return X3270App(args)
@@ -396,7 +403,7 @@ class Emulator(object):
         ypos -= 1
         self.exec_command("MoveCursor({0}, {1})".format(ypos, xpos).encode("ascii"))
 
-    def send_string(self, tosend, ypos=None, xpos=None):
+    def send_string(self, tosend, ypos=None, xpos=None, encoding_format="iso8859_15"):
         """
             Send a string to the screen at the current cursor location or at
             screen co-ordinates `ypos`/`xpos` if they are both given.
@@ -410,7 +417,7 @@ class Emulator(object):
         # escape double quotes in the data to send
         tosend = tosend.replace('"', '"')
 
-        self.exec_command('String("{0}")'.format(tosend).encode("utf-8"))
+        self.exec_command('String("{0}")'.format(tosend).encode(encoding_format))
 
     def send_enter(self):
         self.exec_command(b"Enter")
@@ -440,7 +447,7 @@ class Emulator(object):
         pf = "PF({})".format(value)
         self.exec_command(bytes(pf.encode("utf-8")))
 
-    def string_get(self, ypos, xpos, length):
+    def string_get(self, ypos, xpos, length, encoding="iso8859_15"):
         """
             Get a string of `length` at screen co-ordinates `ypos`/`xpos`
 
@@ -451,11 +458,14 @@ class Emulator(object):
         xpos -= 1
         ypos -= 1
         cmd = self.exec_command(
-            "Ascii({0},{1},{2})".format(ypos, xpos, length).encode("utf-8")
+            "Ascii({0},{1},{2})".format(ypos, xpos, length).encode(encoding)
         )
         # this usage of ascii should only return a single line of data
         assert len(cmd.data) == 1, cmd.data
-        return cmd.data[0].decode("utf-8")
+        # Note that this is source for errors, make sure to use the correct encoding.
+        # Possible TODO: Detecting encoding is usually done by relying on statistics to guess the most probable encoding,
+        # which is why doing it is left out here. However, could be implemented later if risks are accepted.
+        return cmd.data[0].decode(encoding)
 
     def string_found(self, ypos, xpos, string):
         """
