@@ -3,7 +3,7 @@
 
 from unittest import mock
 
-from pytest import raises
+from pytest import raises, fail
 
 from base import ExamApp, MCommand
 from py3270 import CommandError
@@ -40,27 +40,27 @@ class TestCommand(object):
         data = "data: some kind \n"
         data += "data: of error\n"
         cmd = MCommand(data, result="error")
-        with raises(CommandError, message="some kind of error"):
+        with raises(CommandError):
             cmd.execute()
+            fail("some kind of error")
 
     def test_error_response_no_data(self):
         cmd = MCommand(result="error")
-        with raises(CommandError, message="[no error message]"):
+        with raises(CommandError):
             cmd.execute()
+            fail("[no error message]")
 
     def test_unexpected_result(self):
         cmd = MCommand(result="foobar")
-        with raises(
-            ValueError, message='expected "ok" or "error" result, but received: foobar'
-        ):
+        with raises(ValueError):
             cmd.execute()
+            fail('expected "ok" or "error" result, but received: foobar')
 
     def test_blank_result(self):
         cmd = MCommand(result="")
-        with raises(
-            ValueError, message='expected "ok" or "error" result, but received: '
-        ):
+        with raises(ValueError):
             cmd.execute()
+            fail('expected "ok" or "error" result, but received: ')
 
     def test_blank_result_with_quit(self):
         cmd = MCommand(result="", cmdstr=b"Quit")
