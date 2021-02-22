@@ -510,3 +510,7 @@ class Emulator(object):
     def save_screen(self, file_path):
         self.exec_command("PrintText(html,file,{0})".format(file_path).encode("ascii"))
 
+    def get_code_page(self):
+        """ Get host code page (for example cp1143 for Finnish character set).
+        """
+        return self.exec_command('Query({0})'.format('CodePage').encode('ascii'))
